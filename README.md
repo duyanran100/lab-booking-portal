@@ -17,12 +17,15 @@ docker run --rm \
     composer install --ignore-platform-reqs
 
 ./vendor/bin/sail composer install
+```
 
 ## Database Migration
 ```bash
 ./vendor/bin/sail artisan migrate:fresh --seed
+```
 
 ## Start and Stop Apllication
 ```bash
 ./vendor/bin/sail up -d
 ./vendor/bin/sail stop
+```
