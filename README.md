@@ -1,7 +1,13 @@
-Docker && Docker Compose required
+# Laravel Application Setup with Docker and Sail
 
-**Installing Composer Dependencies**
+## Requirements
+
+- **Docker** and **Docker Compose** are required.
+
+## Installing Composer Dependencies
+
 You may install the application's dependencies by navigating to the application's directory and executing the following command. This command uses a small Docker container containing PHP and Composer to install the application's dependencies:
+
 ```bash
 docker run --rm \
     -u "$(id -u):$(id -g)" \
@@ -10,14 +16,13 @@ docker run --rm \
     laravelsail/php83-composer:latest \
     composer install --ignore-platform-reqs
 
-```bash
 ./vendor/bin/sail composer install
 
-**Database Migration**
+## Database Migration
 ```bash
 ./vendor/bin/sail artisan migrate:fresh --seed
 
-**Start and Stop Apllication**
+## Start and Stop Apllication
 ```bash
 ./vendor/bin/sail up -d
 ./vendor/bin/sail stop
