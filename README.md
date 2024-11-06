@@ -13,17 +13,26 @@ docker run --rm \
     -w /var/www/html \
     laravelsail/php83-composer:latest \
     composer install --ignore-platform-reqs
-
-./vendor/bin/sail composer install
-```
-
-## Database Migration
-```bash
-./vendor/bin/sail artisan migrate:fresh --seed
 ```
 
 ## Start and Stop Apllication
 ```bash
 ./vendor/bin/sail up -d
 ./vendor/bin/sail stop
+```
+
+## Install packages
+```bash
+./vendor/bin/sail composer install
+```
+
+## Database Migration
+```bash
+./vendor/bin/sail artisan migrate
+./vendor/bin/sail artisan migrate:fresh --seed
+```
+
+## Generate App Key
+```bash
+./vendor/bin/sail artisan key:generate
 ```
