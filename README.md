@@ -1,5 +1,3 @@
-# Laravel Application Setup with Docker and Sail
-
 ## Requirements
 
 - **Docker** and **Docker Compose** are required.
