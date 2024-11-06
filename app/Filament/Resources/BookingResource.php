@@ -7,6 +7,7 @@ use App\Filament\Resources\BookingResource\Pages;
 use App\Models\Booking;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -19,6 +20,7 @@ use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 class BookingResource extends Resource
 {
@@ -35,7 +37,7 @@ class BookingResource extends Resource
                     ->label('User')
                     ->default(auth()->user()->id)
                     ->disabled(auth()->user()->isGuest())
-                    ->relationship('user', 'name')
+                    ->relationship('user', 'email')
                     ->required()
                     ->rules(['exists:users,id']),
 
@@ -74,55 +76,179 @@ class BookingResource extends Resource
                     ->helperText('Briefly describe why you need this resource')
                     ->columnSpanFull(),
             
-                DateTimePicker::make('start_time')
-                    ->label('Start Time')
-                    ->live()
-                    ->after(now())
-                    ->before('end_time')
-                    ->required(),
-                
-                DateTimePicker::make('end_time')
-                    ->label('End Time')
-                    ->live()
+                Radio::make('time_frame_type')
+                    ->label('Booking Time Frame')
+                    ->options([
+                        'single' => 'Single Time Frame',
+                        'multiple' => 'Multiple Time Frames',
+                    ])
                     ->required()
-                    ->after('start_time')
-                    ->after(now())
-                    ->afterStateUpdated(function (Get $get, Set $set, $state) {
-                        $startTime = $get('start_time');
-                
-                        // Check for overlapping bookings
-                        if ($startTime && $get('type') && $state) {
-                            $query = Booking::query()->where('status', '!=', BookingStatusEnum::REJECTED);
-                
-                            // Filter based on resource type
-                            if ($get('type') === 'room') {
-                                $query->where('room_id', $get('room_id'));
-                            } else {
-                                $query->where('server_id', $get('server_id'));
-                            }
-                
-                            // Find overlapping bookings
-                            $query->where(function ($q) use ($startTime, $state) {
-                                $q->whereBetween('start_time', [$startTime, $state])
-                                    ->orWhereBetween('end_time', [$startTime, $state])
-                                    ->orWhere(function ($q) use ($startTime, $state) {
-                                        $q->where('start_time', '<=', $startTime)
-                                          ->where('end_time', '>=', $state);
-                                    });
-                            });
-                
-                            if ($query->exists()) {
-                                $resourceType = ucfirst($get('type'));
-                                Notification::make()
-                                    ->danger()
-                                    ->title('Booking Conflict')
-                                    ->body("This {$resourceType} is already booked during the selected time period.")
-                                    ->persistent()
-                                    ->send();
-                                $set('end_time', null);
-                            }
+                    ->live()
+                    ->columnSpanFull(),
+    
+                // For Single Time Frame Selection
+                DatePicker::make('single_date')
+                    ->label('Select Date')
+                    ->required()
+                    ->live()
+                    ->visible(fn (Get $get) => $get('time_frame_type') === 'single')
+                    ->afterStateUpdated(function (Set $set, $state, Get $get) {
+                        // Set start_time and end_time based on single date and time slot
+                        $hours = $get('single_time_slot');
+                        $date = $state;
+                        if ($date && $hours) {
+                            [$startHour, $endHour] = explode('-', $hours);
+                            $startDateTime = Carbon::parse($date)->setTime((int)$startHour, 0)->toDateTimeString();
+                            $endDateTime = Carbon::parse($date)->setTime((int)$endHour, 0)->toDateTimeString();
+    
+                            $set('start_time', $startDateTime);
+                            $set('end_time', $endDateTime);
+
+                            self::validateBookingAvailability($get, $set, $startDateTime, $endDateTime);
                         }
                     }),
+    
+                Radio::make('single_time_slot')
+                    ->label('Select Time Slot')
+                    ->options([
+                        '0:00-12:00' => 'Night (0:00 - 12:00)',
+                        '12:00-24:00' => 'Day (12:00 - 24:00)',
+                    ])
+                    ->required()
+                    ->live()
+                    ->visible(fn (Get $get) => $get('time_frame_type') === 'single')
+                    ->afterStateUpdated(function (Set $set, $state, Get $get) {
+                        // Set start_time and end_time based on single date and time slot
+                        $date = $get('single_date');
+                        $hours = $state;
+                        if ($date && $hours) {
+                            [$startHour, $endHour] = explode('-', $hours);
+                            $startDateTime = Carbon::parse($date)->setTime((int)$startHour, 0)->toDateTimeString();
+                            $endDateTime = Carbon::parse($date)->setTime((int)$endHour, 0)->toDateTimeString();
+    
+                            $set('start_time', $startDateTime);
+                            $set('end_time', $endDateTime);
+
+                            self::validateBookingAvailability($get, $set, $startDateTime, $endDateTime);
+                        }
+                    }),
+    
+                // For Multiple Time Frames Selection
+                DatePicker::make('start_date')
+                    ->label('Start Date')
+                    ->required()
+                    ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
+                    ->afterStateUpdated(function (Set $set, $state, Get $get) {
+                        // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
+                        $startDate = $state;
+                        $endDate = $get('end_date');
+                        $startTimeSlot = $get('start_time_slot');
+                        $endTimeSlot = $get('end_time_slot');
+    
+                        if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
+                            [$startHour] = explode('-', $startTimeSlot);
+                            [$endHour] = explode('-', $endTimeSlot);
+                            $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
+                            $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
+    
+                            $set('start_time', $startDateTime);
+                            $set('end_time', $endDateTime);
+    
+                            // Trigger validation once end_time is set
+                            self::validateBookingAvailability($get, $set, $startDateTime, $endDateTime);
+                        }
+                    }),
+    
+                Radio::make('start_time_slot')
+                    ->label('Select Start Time Slot')
+                    ->options([
+                        '0:00-12:00' => 'Night (0:00 - 12:00)',
+                        '12:00-24:00' => 'Day (12:00 - 24:00)',
+                    ])
+                    ->required()
+                    ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
+                    ->afterStateUpdated(function (Set $set, $state, Get $get) {
+                        // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
+                        $startDate = $get('start_date');
+                        $endDate = $get('end_date');
+                        $startTimeSlot = $state;
+                        $endTimeSlot = $get('end_time_slot');
+    
+                        if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
+                            [$startHour] = explode('-', $startTimeSlot);
+                            [$endHour] = explode('-', $endTimeSlot);
+                            $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
+                            $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
+    
+                            $set('start_time', $startDateTime);
+                            $set('end_time', $endDateTime);
+    
+                            // Trigger validation once end_time is set
+                            self::validateBookingAvailability($get, $set, $startDateTime, $endDateTime);
+                        }
+                    }),
+    
+                DatePicker::make('end_date')
+                    ->label('End Date')
+                    ->required()
+                    ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
+                    ->afterStateUpdated(function (Set $set, $state, Get $get) {
+                        // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
+                        $startDate = $get('start_date');
+                        $endDate = $state;
+                        $startTimeSlot = $get('start_time_slot');
+                        $endTimeSlot = $get('end_time_slot');
+    
+                        if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
+                            [$startHour] = explode('-', $startTimeSlot);
+                            [$endHour] = explode('-', $endTimeSlot);
+                            $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
+                            $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
+    
+                            $set('start_time', $startDateTime);
+                            $set('end_time', $endDateTime);
+    
+                            // Trigger validation once end_time is set
+                            self::validateBookingAvailability($get, $set, $startDateTime, $endDateTime);
+                        }
+                    }),
+    
+                Radio::make('end_time_slot')
+                    ->label('Select End Time Slot')
+                    ->options([
+                        '0:00-12:00' => 'Night (0:00 - 12:00)',
+                        '12:00-24:00' => 'Day (12:00 - 24:00)',
+                    ])
+                    ->required()
+                    ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
+                    ->afterStateUpdated(function (Set $set, $state, Get $get) {
+                        // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
+                        $startDate = $get('start_date');
+                        $endDate = $get('end_date');
+                        $startTimeSlot = $get('start_time_slot');
+                        $endTimeSlot = $state;
+    
+                        if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
+                            [$startHour] = explode('-', $startTimeSlot);
+                            [$endHour] = explode('-', $endTimeSlot);
+                            $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
+                            $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
+    
+                            $set('start_time', $startDateTime);
+                            $set('end_time', $endDateTime);
+    
+                            // Trigger validation once end_time is set
+                            self::validateBookingAvailability($get, $set, $startDateTime, $endDateTime);
+                        }
+                    }),
+
+                Hidden::make('start_time')
+                    ->required()
+                    ->live(),     
+
+                Hidden::make('end_time')
+                    ->required()
+                    ->live(),
             ]);
     }
     
@@ -240,5 +366,68 @@ class BookingResource extends Resource
             'create' => Pages\CreateBooking::route('/create'),
             'edit' => Pages\EditBooking::route('/{record}/edit'),
         ];
+    }
+
+    protected static function validateBookingAvailability(Get $get, Set $set, $startDateTime, $endDateTime)
+    {
+        dd($startDateTime, $endDateTime);
+        if ($endDateTime < $startDateTime) {
+            Notification::make()
+                ->danger()
+                ->title('Booking Time Invalid')
+                ->body("The selected start time period is after end time. Please pick a valid time.")
+                ->persistent()
+                ->send();
+
+            $set('start_time', null);
+            $set('end_time', null);
+        }
+
+        if ($endDateTime < now()) {
+            Notification::make()
+                ->danger()
+                ->title('Booking Time Invalid')
+                ->body("The selected booking time period is in the past. Please pick a valid time.")
+                ->persistent()
+                ->send();
+
+            $set('start_time', null);
+            $set('end_time', null);
+        }
+
+        $type = $get('type');
+
+        if ($type && $startDateTime && $endDateTime) {
+            $query = Booking::query()->where('status', '!=', BookingStatusEnum::REJECTED);
+
+            if ($type === 'room') {
+                $query->where('room_id', $get('room_id'));
+            } else {
+                $query->where('server_id', $get('server_id'));
+            }
+
+            // Check for overlapping bookings
+            $query->where(function ($q) use ($startDateTime, $endDateTime) {
+                $q->whereBetween('start_time', [$startDateTime, $endDateTime])
+                    ->orWhereBetween('end_time', [$startDateTime, $endDateTime])
+                    ->orWhere(function ($q) use ($startDateTime, $endDateTime) {
+                        $q->where('start_time', '<=', $startDateTime)
+                            ->where('end_time', '>=', $endDateTime);
+                    });
+            });
+
+            if ($query->exists()) {
+                $resourceType = ucfirst($type);
+                Notification::make()
+                    ->danger()
+                    ->title('Booking Conflict')
+                    ->body("This {$resourceType} is already booked during the selected time period.")
+                    ->persistent()
+                    ->send();
+
+                $set('start_time', null);
+                $set('end_time', null);
+            }
+        }
     }
 }
