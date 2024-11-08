@@ -19,7 +19,7 @@ class ServerResource extends Resource
 {
     protected static ?string $model = Server::class;
     protected static ?string $navigationIcon = 'heroicon-o-server';
-    protected static ?string $navigationGroup = 'Facility Management';
+    protected static ?string $navigationGroup = 'Resource Management';
 
     public static function form(Form $form): Form
     {

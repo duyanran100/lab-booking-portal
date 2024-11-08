@@ -13,16 +13,9 @@ class BookingPolicy
         return true;
     }
     
-    public function view(User $user, Booking $booking): bool
+    public function view(): bool
     {
-        if ($user->isGuest()) {
-            return in_array($booking->status, [
-                    BookingStatusEnum::PENDING->value,
-                    BookingStatusEnum::APPROVED->value
-                ]) && $booking->end_time > now();
-        }
-    
-        return $user->isAdmin();
+        return true;
     }
     
     public function create(): bool
@@ -30,13 +23,21 @@ class BookingPolicy
         return true;
     }
     
-    public function update(User $user): bool
+    public function update(User $user, Booking $booking): bool
     {
-        return $user->isAdmin();
+        if ($user->isAdmin()) {
+            return true;
+        }
+    
+        return $user->id === $booking->user_id && $booking->status === BookingStatusEnum::PENDING;
     }
     
     public function delete(User $user, Booking $booking): bool
     {
-        return $user->isAdmin() || $booking->user->id === $user->id;
-    }
+        if ($user->isAdmin()) {
+            return true;
+        }
+    
+        return $user->id === $booking->user_id && $booking->status === BookingStatusEnum::PENDING;
+    }    
 }

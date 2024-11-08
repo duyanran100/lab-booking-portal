@@ -11,13 +11,4 @@ use Illuminate\Database\Eloquent\Model;
 class CreateBooking extends CreateRecord
 {
     protected static string $resource = BookingResource::class;
-
-    protected function handleRecordCreation(array $data): Model
-    {
-        if (auth()->user()->isAdmin()) {
-            $data['status'] = BookingStatusEnum::APPROVED;
-        }
-
-        return static::getModel()::create($data);
-    }
 }

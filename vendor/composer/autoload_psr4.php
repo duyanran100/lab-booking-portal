@@ -84,6 +84,8 @@ return array(
     'GuzzleHttp\\Psr7\\' => array($vendorDir . '/guzzlehttp/psr7/src'),
     'GuzzleHttp\\Promise\\' => array($vendorDir . '/guzzlehttp/promises/src'),
     'GuzzleHttp\\' => array($vendorDir . '/guzzlehttp/guzzle/src'),
+    'Guava\\Calendar\\Database\\Factories\\' => array($vendorDir . '/guava/calendar/database/factories'),
+    'Guava\\Calendar\\' => array($vendorDir . '/guava/calendar/src'),
     'GrahamCampbell\\ResultType\\' => array($vendorDir . '/graham-campbell/result-type/src'),
     'Fruitcake\\Cors\\' => array($vendorDir . '/fruitcake/php-cors/src'),
     'Filament\\Widgets\\' => array($vendorDir . '/filament/widgets/src'),

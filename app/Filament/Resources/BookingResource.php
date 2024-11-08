@@ -60,12 +60,14 @@ class BookingResource extends Resource
                     ->label('Room')
                     ->relationship('room', 'name')
                     ->required()
+                    ->live()
                     ->visible(fn (Get $get) => $get('type') === 'room'),
                 
                 Select::make('server_id')
                     ->label('Server')
                     ->relationship('server', 'name')
                     ->required()
+                    ->live()
                     ->visible(fn (Get $get) => $get('type') === 'server'),
                 
                 TextInput::make('purpose')
@@ -84,6 +86,14 @@ class BookingResource extends Resource
                     ])
                     ->required()
                     ->live()
+                    ->afterStateUpdated(function (Set $set) {
+                        $set('single_date', null);
+                        $set('single_time_slot', null);
+                        $set('start_date', null);
+                        $set('start_time_slot', null);
+                        $set('end_date', null);
+                        $set('end_time_slot', null);
+                    })
                     ->columnSpanFull(),
     
                 // For Single Time Frame Selection
@@ -111,7 +121,7 @@ class BookingResource extends Resource
                 Radio::make('single_time_slot')
                     ->label('Select Time Slot')
                     ->options([
-                        '0:00-12:00' => 'Night (0:00 - 12:00)',
+                        '00:00-12:00' => 'Night (00:00 - 12:00)',
                         '12:00-24:00' => 'Day (12:00 - 24:00)',
                     ])
                     ->required()
@@ -137,6 +147,7 @@ class BookingResource extends Resource
                 DatePicker::make('start_date')
                     ->label('Start Date')
                     ->required()
+                    ->live()
                     ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
                     ->afterStateUpdated(function (Set $set, $state, Get $get) {
                         // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
@@ -147,7 +158,7 @@ class BookingResource extends Resource
     
                         if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
                             [$startHour] = explode('-', $startTimeSlot);
-                            [$endHour] = explode('-', $endTimeSlot);
+                            [$_, $endHour] = explode('-', $endTimeSlot);
                             $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
                             $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
     
@@ -162,10 +173,11 @@ class BookingResource extends Resource
                 Radio::make('start_time_slot')
                     ->label('Select Start Time Slot')
                     ->options([
-                        '0:00-12:00' => 'Night (0:00 - 12:00)',
+                        '00:00-12:00' => 'Night (00:00 - 12:00)',
                         '12:00-24:00' => 'Day (12:00 - 24:00)',
                     ])
                     ->required()
+                    ->live()
                     ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
                     ->afterStateUpdated(function (Set $set, $state, Get $get) {
                         // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
@@ -176,7 +188,7 @@ class BookingResource extends Resource
     
                         if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
                             [$startHour] = explode('-', $startTimeSlot);
-                            [$endHour] = explode('-', $endTimeSlot);
+                            [$_, $endHour] = explode('-', $endTimeSlot);
                             $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
                             $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
     
@@ -191,6 +203,7 @@ class BookingResource extends Resource
                 DatePicker::make('end_date')
                     ->label('End Date')
                     ->required()
+                    ->live()
                     ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
                     ->afterStateUpdated(function (Set $set, $state, Get $get) {
                         // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
@@ -201,7 +214,7 @@ class BookingResource extends Resource
     
                         if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
                             [$startHour] = explode('-', $startTimeSlot);
-                            [$endHour] = explode('-', $endTimeSlot);
+                            [$_, $endHour] = explode('-', $endTimeSlot);
                             $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
                             $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
     
@@ -216,10 +229,11 @@ class BookingResource extends Resource
                 Radio::make('end_time_slot')
                     ->label('Select End Time Slot')
                     ->options([
-                        '0:00-12:00' => 'Night (0:00 - 12:00)',
+                        '00:00-12:00' => 'Night (00:00 - 12:00)',
                         '12:00-24:00' => 'Day (12:00 - 24:00)',
                     ])
                     ->required()
+                    ->live()
                     ->visible(fn (Get $get) => $get('time_frame_type') === 'multiple')
                     ->afterStateUpdated(function (Set $set, $state, Get $get) {
                         // Set start_time and end_time based on start_date, start_time_slot, end_date, end_time_slot
@@ -230,7 +244,7 @@ class BookingResource extends Resource
     
                         if ($startDate && $endDate && $startTimeSlot && $endTimeSlot) {
                             [$startHour] = explode('-', $startTimeSlot);
-                            [$endHour] = explode('-', $endTimeSlot);
+                            [$_, $endHour] = explode('-', $endTimeSlot);
                             $startDateTime = Carbon::parse($startDate)->setTime((int)$startHour, 0)->toDateTimeString();
                             $endDateTime = Carbon::parse($endDate)->setTime((int)$endHour, 0)->toDateTimeString();
     
@@ -262,8 +276,12 @@ class BookingResource extends Resource
                 }
             })
             ->columns([
-                TextColumn::make('user.name')
+                TextColumn::make('user.preferred_name')
                     ->label('User')
+                    ->sortable()
+                    ->searchable(),
+                TextColumn::make('user.email')
+                    ->label('Email')
                     ->sortable()
                     ->searchable(),
                 TextColumn::make('room.name')
@@ -370,8 +388,7 @@ class BookingResource extends Resource
 
     protected static function validateBookingAvailability(Get $get, Set $set, $startDateTime, $endDateTime)
     {
-        dd($startDateTime, $endDateTime);
-        if ($endDateTime < $startDateTime) {
+        if ($endDateTime <= $startDateTime) {
             Notification::make()
                 ->danger()
                 ->title('Booking Time Invalid')
@@ -398,7 +415,7 @@ class BookingResource extends Resource
         $type = $get('type');
 
         if ($type && $startDateTime && $endDateTime) {
-            $query = Booking::query()->where('status', '!=', BookingStatusEnum::REJECTED);
+            $query = Booking::query()->where('status', '!=', BookingStatusEnum::REJECTED)->where('end_time', '>', now());
 
             if ($type === 'room') {
                 $query->where('room_id', $get('room_id'));
@@ -408,12 +425,16 @@ class BookingResource extends Resource
 
             // Check for overlapping bookings
             $query->where(function ($q) use ($startDateTime, $endDateTime) {
-                $q->whereBetween('start_time', [$startDateTime, $endDateTime])
-                    ->orWhereBetween('end_time', [$startDateTime, $endDateTime])
-                    ->orWhere(function ($q) use ($startDateTime, $endDateTime) {
-                        $q->where('start_time', '<=', $startDateTime)
-                            ->where('end_time', '>=', $endDateTime);
-                    });
+                $q->where(function ($q) use ($startDateTime, $endDateTime) {
+                    $q->where('start_time', '>', $startDateTime)
+                       ->where('start_time', '<', $endDateTime);
+                })->orWhere(function ($q) use ($startDateTime, $endDateTime) {
+                    $q->where('end_time', '>', $startDateTime)
+                       ->where('end_time', '<', $endDateTime);
+                })->orWhere(function ($q) use ($startDateTime, $endDateTime) {
+                    $q->where('start_time', '<=', $startDateTime)
+                       ->where('end_time', '>=', $endDateTime);
+                });
             });
 
             if ($query->exists()) {
